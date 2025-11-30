@@ -172,12 +172,60 @@ def save_run(
     rollout_results: dict,
     inputs_filename: str,
     inputs_only: bool,
+    hyperparameters: dict = None,
 ):
     run_dir.mkdir(parents=True, exist_ok=True)
     run_to_video.write_actions_in_tmi_format(rollout_results["actions"], run_dir / inputs_filename)
+    
+    # Derive a unique base name from the inputs filename (which is unique per run)
+    # inputs_filename is typically "map_time_date_frames_type.inputs"
+    unique_base = inputs_filename.replace(".inputs", "")
+    
+    # Save comprehensive data for data mining (excluding frames to save space)
+    # Using pandas for better data mining compatibility
+    try:
+        import pandas as pd
+        data_to_save = {k: v for k, v in rollout_results.items() if k != "frames"}
+        # Let's save the raw dict as joblib (reliable)
+        joblib.dump(data_to_save, run_dir / f"rollout_data_{unique_base}.joblib")
+        
+        # And try to create a DataFrame for easy viewing
+        df_dict = {}
+        max_len = 0
+        for k, v in data_to_save.items():
+            if isinstance(v, (list, np.ndarray)):
+                if len(v) > max_len:
+                    max_len = len(v)
+        
+        for k, v in data_to_save.items():
+            if isinstance(v, (list, np.ndarray)):
+                if len(v) == max_len:
+                    df_dict[k] = v
+        
+        df = pd.DataFrame(df_dict)
+        df.to_parquet(run_dir / f"rollout_data_{unique_base}.parquet")
+        
+    except Exception as e:
+        print(f"Could not save parquet: {e}")
+        # Fallback to just joblib which we already did or do here
+        joblib.dump({k: v for k, v in rollout_results.items() if k != "frames"}, run_dir / f"rollout_data_{unique_base}.joblib")
+
+    if hyperparameters is not None:
+        import json
+        try:
+            with open(run_dir / f"hyperparameters_{unique_base}.json", "w") as f:
+                # Convert numpy types to python types for json serialization
+                def convert(o):
+                    if isinstance(o, np.generic): return o.item()
+                    raise TypeError
+                json.dump(hyperparameters, f, indent=4, default=convert)
+        except Exception as e:
+            print(f"Could not save hyperparameters: {e}")
+
     if not inputs_only:
         shutil.copy(base_dir / "config_files" / "config_copy.py", run_dir / "config.bak.py")
-        joblib.dump(rollout_results["q_values"], run_dir / "q_values.joblib")
+        # q_values are already in rollout_data.joblib, but keeping this for backward compatibility if needed
+        # joblib.dump(rollout_results["q_values"], run_dir / "q_values.joblib")
 
 
 def save_checkpoint(
@@ -198,3 +246,24 @@ def set_random_seed(seed: int):
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
+
+def log_metrics_to_csv(file_path: Path, metrics: dict):
+    """
+    Log metrics to a CSV file. Appends to the file if it exists.
+    """
+    import csv
+    import os
+    from datetime import datetime
+    
+    file_exists = os.path.isfile(file_path)
+    
+    # Add timestamp
+    metrics["timestamp"] = datetime.now().isoformat()
+    
+    with open(file_path, mode='a', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=metrics.keys())
+        
+        if not file_exists:
+            writer.writeheader()
+            
+        writer.writerow(metrics)

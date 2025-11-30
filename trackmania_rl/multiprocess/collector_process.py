@@ -28,6 +28,7 @@ def collector_process_fn(
     tmi_port: int,
     process_number: int,
 ):
+    print(f"DEBUG: Collector Process {process_number} starting...", flush=True)
     from trackmania_rl.map_loader import analyze_map_cycle, load_next_map_zone_centers
     from trackmania_rl.tmi_interaction import game_instance_manager
 
@@ -81,10 +82,12 @@ def collector_process_fn(
         importlib.reload(config_copy)
 
         tmi.max_minirace_duration_ms = config_copy.cutoff_rollout_if_no_vcp_passed_within_duration_ms
+        tmi.running_speed = config_copy.running_speed
 
         # ===============================================
         #   DID THE CYCLE CHANGE ?
         # ===============================================
+
         if str(config_copy.map_cycle) != map_cycle_str:
             map_cycle_str = str(config_copy.map_cycle)
             set_maps_trained, set_maps_blind = analyze_map_cycle(config_copy.map_cycle)
@@ -105,10 +108,28 @@ def collector_process_fn(
         inferer.is_explo = is_explo
 
         # ===============================================
-        #   PLAY ONE ROUND
+        #   CURRICULUM LEARNING (The Student)
         # ===============================================
-
-        rollout_start_time = time.perf_counter()
+        start_state = None
+        try:
+            config_path = base_dir / "curriculum_config.txt"
+            if config_path.exists():
+                with open(config_path, "r") as f:
+                    for line in f:
+                        if "FORCE_SPAWN_ZONE" in line:
+                            val = line.split("=")[1].strip()
+                            if val != "None":
+                                zone_idx = int(val)
+                                state_path = base_dir / "states" / f"zone_{zone_idx}.pkl"
+                                if state_path.exists():
+                                    import pickle
+                                    with open(state_path, "rb") as sf:
+                                        start_state = pickle.load(sf)
+                                    # print(f"👻 Resurrection: Loading state for Zone {zone_idx}")
+                                else:
+                                    print(f"⚠️ Curriculum: State file not found: {state_path}")
+        except Exception as e:
+            print(f"Curriculum Error: {e}")
 
         if inference_network.training and not is_explo:
             inference_network.eval()
@@ -118,11 +139,26 @@ def collector_process_fn(
         update_network()
 
         rollout_start_time = time.perf_counter()
+        
+        # Pass start_state to rollout if supported (requires modifying GameInstanceManager too)
+        # Since I can't easily modify GameInstanceManager signature without breaking things,
+        # I will inject it via a side channel or modify GameInstanceManager to accept **kwargs?
+        # Actually, I should modify GameInstanceManager.rollout signature.
+        # But for now, let's assume I can't.
+        # Wait, I CAN modify GameInstanceManager.
+        # But let's check if I can just set it BEFORE calling rollout?
+        # No, rollout resets the game.
+        
+        # Let's modify the call to pass start_state, and I will update GameInstanceManager next.
         rollout_results, end_race_stats = tmi.rollout(
             exploration_policy=inferer.get_exploration_action,
             map_path=map_path,
             zone_centers=zone_centers,
             update_network=update_network,
+            epsilon=inferer.epsilon,
+            epsilon_boltzmann=inferer.epsilon_boltzmann,
+            start_state=start_state,  # <--- Added this
+            save_states_dir=base_dir / "states", # <--- Added this
         )
         rollout_end_time = time.perf_counter()
         rollout_duration = rollout_end_time - rollout_start_time

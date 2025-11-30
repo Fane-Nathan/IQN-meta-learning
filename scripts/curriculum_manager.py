@@ -1,0 +1,75 @@
+
+import os
+import pandas as pd
+import sys
+
+# Add scripts folder to path to import analysis modules
+sys.path.append(os.path.join(os.path.dirname(__file__)))
+
+import section_analysis
+import root_cause_analysis
+
+def run_teacher_step():
+    print("🎓 Teacher: Analyzing Student Performance...")
+    
+    output_dir = "analysis_results_curriculum"
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # 1. Run the Mining Algorithms
+    # Load data once
+    df = section_analysis.load_data()
+    if df is None:
+        print("🎓 Teacher: No data found. Skipping analysis.")
+        return
+
+    # Add features needed for analysis
+    df = section_analysis.extract_features(df)
+    
+    # Analyze Zones
+    zone_stats = section_analysis.analyze_zone_performance(df, output_dir)
+    
+    # 2. Identify the "Kill Zone"
+    # Find the earliest zone with > 20% crash rate that has been visited at least 50 times
+    # We ignore Zone 0-1 (start)
+    candidates = zone_stats[ (zone_stats["crash_rate"] > 20) & (zone_stats["total_frames"] > 50) & (zone_stats["current_zone_idx"] > 2) ]
+    
+    curriculum_update = {}
+    
+    if not candidates.empty:
+        # Pick the earliest one (the bottleneck)
+        hardest_zone = candidates["current_zone_idx"].min()
+        print(f"🎓 Teacher: Student is stuck at Zone {hardest_zone} (Crash Rate: {candidates.loc[candidates['current_zone_idx'] == hardest_zone, 'crash_rate'].values[0]:.1f}%). Forcing practice there.")
+        
+        # Spawn slightly before it
+        spawn_zone = max(0, hardest_zone - 2)
+        curriculum_update["FORCE_SPAWN_ZONE"] = spawn_zone
+    else:
+        print("🎓 Teacher: Student is progressing well. Standard spawning.")
+        curriculum_update["FORCE_SPAWN_ZONE"] = "None"
+
+    # 3. Check Root Causes for Hyperparams
+    X, y, features = root_cause_analysis.create_dataset(df)
+    
+    if X is not None:
+        top_features = root_cause_analysis.train_crash_predictor(X, y, features, output_dir)
+        most_important_feature = top_features[0][0] # e.g., "vel_x"
+        print(f"🎓 Teacher: Primary cause of death is {most_important_feature}.")
+        
+        # Simple heuristic logic
+        if "vel" in most_important_feature:
+             print("   -> Suggestion: Increase lookahead (gamma) or braking penalty.")
+        elif "pos" in most_important_feature:
+             print("   -> Suggestion: Improve spatial awareness (CNN layers).")
+    
+    # 4. Write to Config
+    config_path = "curriculum_config.txt"
+    print(f"🎓 Teacher: Updating {config_path}...")
+    
+    with open(config_path, "w") as f:
+        for k, v in curriculum_update.items():
+            f.write(f"{k}={v}\n")
+            
+    print("🎓 Teacher: Class dismissed.")
+
+if __name__ == "__main__":
+    run_teacher_step()

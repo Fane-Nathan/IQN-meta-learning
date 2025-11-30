@@ -210,19 +210,11 @@ class GameInstanceManager:
 
             tmi_process_id = int(subprocess.check_output(launch_string).decode().split("\r\n")[1])
             while self.tm_process_id is None:
-                tm_processes = list(
-                    filter(
-                        lambda s: s.startswith("TmForever"),
-                        subprocess.check_output("wmic process get Caption,ParentProcessId,ProcessId").decode().split("\r\n"),
-                    )
-                )
-                for process in tm_processes:
-                    name, parent_id, process_id = process.split()
-                    parent_id = int(parent_id)
-                    process_id = int(process_id)
-                    if parent_id == tmi_process_id:
-                        self.tm_process_id = process_id
+                for proc in psutil.process_iter(['pid', 'name', 'ppid']):
+                    if proc.info['name'] == 'TmForever.exe' and proc.info['ppid'] == tmi_process_id:
+                        self.tm_process_id = proc.info['pid']
                         break
+                time.sleep(0.1)
 
         print(f"Found Trackmania process id: {self.tm_process_id=}")
         self.last_game_reboot = time.perf_counter()
@@ -276,7 +268,7 @@ class GameInstanceManager:
             self.max_allowable_distance_to_real_checkpoint,
         ) = map_loader.sync_virtual_and_real_checkpoints(zone_centers, map_path)
 
-    def rollout(self, exploration_policy: Callable, map_path: str, zone_centers: npt.NDArray, update_network: Callable):
+    def rollout(self, exploration_policy: Callable, map_path: str, zone_centers: npt.NDArray, update_network: Callable, epsilon: float = 0.0, epsilon_boltzmann: float = 0.0, start_state=None, save_states_dir=None):
         (
             zone_transitions,
             distance_between_zone_transitions,
@@ -314,6 +306,12 @@ class GameInstanceManager:
             "meters_advanced_along_centerline": [],
             "state_float": [],
             "furthest_zone_idx": 0,
+            "step_race_times": [],
+            "epsilon": [],
+            "epsilon_boltzmann": [],
+            "x": [],
+            "y": [],
+            "z": [],
         }
 
         last_progress_improvement_ms = 0
@@ -341,6 +339,27 @@ class GameInstanceManager:
             if self.msgtype_response_to_wakeup_TMI is not None:
                 self.iface._respond_to_call(self.msgtype_response_to_wakeup_TMI)
                 self.msgtype_response_to_wakeup_TMI = None
+                
+        # CURRICULUM: Load Start State
+        if start_state is not None:
+            try:
+                print("👻 Resurrection: Rewinding to state...")
+                # start_state is bytes, wrap it in SimStateData
+                from tminterface.structs import SimStateData
+                state_obj = SimStateData(start_state)
+                self.iface.rewind_to_state(state_obj)
+            except Exception as e:
+                print(f"Resurrection Failed: {e}")
+        elif start_state is None and save_states_dir is not None:
+             # Debug: Print if we expected to load a state but couldn't (implied by caller logic, but here we only see None)
+             pass
+        
+        # CURRICULUM: Track max zone for saving
+        max_zone_reached = -1
+        if save_states_dir is not None:
+             import pickle
+             if not os.path.exists(save_states_dir):
+                 os.makedirs(save_states_dir)
 
         self.last_rollout_crashed = False
 
@@ -420,9 +439,24 @@ class GameInstanceManager:
                             self.max_allowable_distance_to_real_checkpoint,
                         )
 
-                    if current_zone_idx > rollout_results["furthest_zone_idx"]:
-                        last_progress_improvement_ms = sim_state_race_time
-                        rollout_results["furthest_zone_idx"] = current_zone_idx
+                        # Debug: Print first zone
+                        if len(rollout_results["current_zone_idx"]) == 0:
+                            print(f"🏁 Start Zone: {current_zone_idx}")
+
+                        # CURRICULUM: Save state if new zone reached
+                        if save_states_dir is not None and current_zone_idx > max_zone_reached:
+                            max_zone_reached = current_zone_idx
+                            try:
+                                # Save the RAW bytes of the SimStateData
+                                state_bytes = last_known_simulation_state.data
+                                
+                                save_path = save_states_dir / f"zone_{current_zone_idx}.pkl"
+                                if not save_path.exists():
+                                    with open(save_path, "wb") as f:
+                                        pickle.dump(state_bytes, f)
+                                    print(f"💾 Saved state for Zone {current_zone_idx}")
+                            except Exception as e:
+                                print(f"Failed to save state: {e}")
 
                     rollout_results["current_zone_idx"].append(current_zone_idx)
 
@@ -723,6 +757,12 @@ class GameInstanceManager:
                         rollout_results["car_gear_and_wheels"].append(sim_state_car_gear_and_wheels)
                         rollout_results["q_values"].append(q_values)
                         rollout_results["state_float"].append(floats)
+                        rollout_results["step_race_times"].append(sim_state_race_time)
+                        rollout_results["epsilon"].append(epsilon)
+                        rollout_results["epsilon_boltzmann"].append(epsilon_boltzmann)
+                        rollout_results["x"].append(sim_state_position[0])
+                        rollout_results["y"].append(sim_state_position[1])
+                        rollout_results["z"].append(sim_state_position[2])
 
                         compute_action_asap = False
                         n_th_action_we_compute += 1

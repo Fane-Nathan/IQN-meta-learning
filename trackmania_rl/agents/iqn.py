@@ -327,8 +327,22 @@ class Trainer:
                 )
                 torch.nn.utils.clip_grad_value_(self.online_network.parameters(), config_copy.clip_grad_value)
 
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
+                # Check for NaNs BEFORE stepping
+                if math.isnan(grad_norm) or math.isinf(grad_norm):
+                    print(f"⚠️ Invalid Gradients detected (grad_norm={grad_norm}). SKIPPING UPDATE to protect model.")
+                    self.scaler = torch.cuda.amp.GradScaler(init_scale=128.0) # Reset with safe scale
+                else:
+                    self.scaler.step(self.optimizer)
+                    self.scaler.update()
+                
+                    # Check for Scaler Collapse or Zero Gradients
+                    scale = self.scaler.get_scale()
+                    if scale < 1e-5 or grad_norm == 0.0:
+                        print(f"⚠️ Scaler Issue detected (scale={scale}, grad_norm={grad_norm}). Resetting Scaler.")
+                        self.scaler = torch.cuda.amp.GradScaler(init_scale=128.0) # Reset with safe scale
+
+
+
             else:
                 grad_norm = 0
 

@@ -391,17 +391,40 @@ def learner_process_fn(
         #   SAVE STUFF IF THIS WAS A GOOD RACE
         # ===============================================
 
-        if end_race_stats["race_time"] < accumulated_stats["alltime_min_ms"].get(map_name, 99999999999):
+        # Collect current hyperparameters for sensitivity analysis
+        current_hyperparams = {
+            "epsilon": utilities.from_exponential_schedule(config_copy.epsilon_schedule, shared_steps.value),
+            "epsilon_boltzmann": utilities.from_exponential_schedule(config_copy.epsilon_boltzmann_schedule, shared_steps.value),
+            "learning_rate": learning_rate,
+            "gamma": gamma,
+            "weight_decay": weight_decay,
+            "engineered_speedslide_reward": engineered_speedslide_reward,
+            "engineered_neoslide_reward": engineered_neoslide_reward,
+            "engineered_kamikaze_reward": engineered_kamikaze_reward,
+            "engineered_close_to_vcp_reward": engineered_close_to_vcp_reward,
+            "n_steps": config_copy.n_steps,
+            "batch_size": config_copy.batch_size,
+            "iqn_k": config_copy.iqn_k,
+            "iqn_n": config_copy.iqn_n,
+            "iqn_kappa": config_copy.iqn_kappa,
+            "prio_alpha": config_copy.prio_alpha,
+            "prio_beta": config_copy.prio_beta,
+            "prio_epsilon": config_copy.prio_epsilon,
+        }
+
+        if (not is_explo) and end_race_stats["race_time"] < accumulated_stats["alltime_min_ms"].get(map_name, 99999999999):
             # This is a new alltime_minimum
             accumulated_stats["alltime_min_ms"][map_name] = end_race_stats["race_time"]
             if accumulated_stats["cumul_number_frames_played"] > config_copy.frames_before_save_best_runs:
                 name = f"{map_name}_{end_race_stats['race_time']}"
+                
                 utilities.save_run(
                     base_dir,
                     save_dir / "best_runs" / name,
                     rollout_results,
                     f"{name}.inputs",
                     inputs_only=False,
+                    hyperparameters=current_hyperparams,
                 )
                 utilities.save_checkpoint(
                     save_dir / "best_runs",
@@ -419,6 +442,7 @@ def learner_process_fn(
                 rollout_results,
                 f"{name}.inputs",
                 inputs_only=True,
+                hyperparameters=current_hyperparams,
             )
 
         # ===============================================
@@ -521,6 +545,19 @@ def learner_process_fn(
                     accumulated_stats["cumul_number_batches_done"] += 1
                     print(f"B    {loss=:<8.2e} {grad_norm=:<8.2e} {train_on_batch_duration_history[-1]*1000:<8.1f}")
 
+                    # Log to CSV
+                    try:
+                        metrics = {
+                            "step": accumulated_stats["cumul_number_batches_done"],
+                            "loss": loss,
+                            "grad_norm": grad_norm if not math.isinf(grad_norm) else -1,
+                            "learning_rate": learning_rate,
+                            "epsilon": utilities.from_exponential_schedule(config_copy.epsilon_schedule, shared_steps.value)
+                        }
+                        utilities.log_metrics_to_csv(save_dir / "training_metrics.csv", metrics)
+                    except Exception as e:
+                        print(f"Error logging to CSV: {e}")
+
                     utilities.custom_weight_decay(online_network, 1 - weight_decay)
                     if accumulated_stats["cumul_number_batches_done"] % config_copy.send_shared_network_every_n_batches == 0:
                         with shared_network_lock:
@@ -585,24 +622,31 @@ def learner_process_fn(
                         "loss": np.mean(loss_history),
                         "loss_test": np.mean(loss_test_history),
                         "train_on_batch_duration": np.median(train_on_batch_duration_history),
-                        "grad_norm_history_q1": np.quantile(grad_norm_history, 0.25),
-                        "grad_norm_history_median": np.quantile(grad_norm_history, 0.5),
-                        "grad_norm_history_q3": np.quantile(grad_norm_history, 0.75),
-                        "grad_norm_history_d9": np.quantile(grad_norm_history, 0.9),
-                        "grad_norm_history_d98": np.quantile(grad_norm_history, 0.98),
-                        "grad_norm_history_max": np.max(grad_norm_history),
                     }
                 )
-                for key, val in layer_grad_norm_history.items():
+                
+                if len(grad_norm_history) > 0:
                     step_stats.update(
                         {
-                            f"{key}_median": np.quantile(val, 0.5),
-                            f"{key}_q3": np.quantile(val, 0.75),
-                            f"{key}_d9": np.quantile(val, 0.9),
-                            f"{key}_c98": np.quantile(val, 0.98),
-                            f"{key}_max": np.max(val),
+                            "grad_norm_history_q1": np.quantile(grad_norm_history, 0.25),
+                            "grad_norm_history_median": np.quantile(grad_norm_history, 0.5),
+                            "grad_norm_history_q3": np.quantile(grad_norm_history, 0.75),
+                            "grad_norm_history_d9": np.quantile(grad_norm_history, 0.9),
+                            "grad_norm_history_d98": np.quantile(grad_norm_history, 0.98),
+                            "grad_norm_history_max": np.max(grad_norm_history),
                         }
                     )
+                    for key, val in layer_grad_norm_history.items():
+                        if len(val) > 0:
+                            step_stats.update(
+                                {
+                                    f"{key}_median": np.quantile(val, 0.5),
+                                    f"{key}_q3": np.quantile(val, 0.75),
+                                    f"{key}_d9": np.quantile(val, 0.9),
+                                    f"{key}_c98": np.quantile(val, 0.98),
+                                    f"{key}_max": np.max(val),
+                                }
+                            )
             if isinstance(buffer._sampler, PrioritizedSampler):
                 all_priorities = np.array([buffer._sampler._sum_tree.at(i) for i in range(len(buffer))])
                 step_stats.update(

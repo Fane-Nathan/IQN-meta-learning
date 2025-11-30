@@ -28,10 +28,10 @@ from config_files.user_config import *
 W_downsized = 160
 H_downsized = 120
 
-run_name = "run_name_to_be_changed"
-running_speed = 80
+run_name = "felix_test_training"
+running_speed = 100
 
-tm_engine_step_per_action = 5
+tm_engine_step_per_action = 2 # for a faster reflex agent rollout
 ms_per_tm_engine_step = 10
 ms_per_action = ms_per_tm_engine_step * tm_engine_step_per_action
 n_zone_centers_in_inputs = 40
@@ -41,7 +41,7 @@ n_zone_centers_extrapolate_before_start_of_map = 20
 n_prev_actions_in_inputs = 5
 n_contact_material_physics_behavior_types = 4  # See contact_materials.py
 cutoff_rollout_if_race_not_finished_within_duration_ms = 300_000
-cutoff_rollout_if_no_vcp_passed_within_duration_ms = 2_000
+cutoff_rollout_if_no_vcp_passed_within_duration_ms = 15_000
 
 temporal_mini_race_duration_ms = 7000
 temporal_mini_race_duration_actions = temporal_mini_race_duration_ms // ms_per_action
@@ -58,6 +58,7 @@ epsilon_schedule = [
     (50_000, 1),
     (300_000, 0.1),
     (3_000_000 * global_schedule_speed, 0.03),
+    (10_000_000 * global_schedule_speed, 0.0), # Decay to 0.0 for sync
 ]
 epsilon_boltzmann_schedule = [
     (0, 0.15),
@@ -92,13 +93,13 @@ iqn_embedding_dimension = 64
 iqn_n = 8  # must be an even number because we sample tau symmetrically around 0.5
 iqn_k = 32  # must be an even number because we sample tau symmetrically around 0.5
 iqn_kappa = 5e-3
-use_ddqn = False
+use_ddqn = True
 
 prio_alpha = np.float32(0)  # Rainbow-IQN paper: 0.2, Rainbow paper: 0.5, PER paper 0.6
 prio_epsilon = np.float32(2e-3)  # Defaults to 10^-6 in stable-baselines
 prio_beta = np.float32(1)
 
-number_times_single_memory_is_used_before_discard = 32  # 32 // 4
+number_times_single_memory_is_used_before_discard = 32  # Reduced from 32 for GTX 1650 optimization
 
 memory_size_schedule = [
     (0, (50_000, 20_000)),
@@ -126,7 +127,7 @@ gamma_schedule = [
     (2_500_000, 1),
 ]
 
-batch_size = 512
+batch_size = 512 # Reverted to 512 for stability
 weight_decay_lr_ratio = 1 / 50
 adam_epsilon = 1e-4
 adam_beta1 = 0.9
@@ -153,7 +154,7 @@ timeout_between_runs_ms = 600_000_000
 tmi_protection_timeout_s = 500
 game_reboot_interval = 3600 * 12  # In seconds
 
-frames_before_save_best_runs = 1_500_000
+frames_before_save_best_runs = 0
 
 plot_race_time_left_curves = False
 n_transitions_to_plot_in_distribution_curves = 1000
@@ -185,7 +186,7 @@ engineered_reward_min_dist_to_cur_vcp = 5
 engineered_reward_max_dist_to_cur_vcp = 25
 shaped_reward_point_to_vcp_ahead = 0
 
-threshold_to_save_all_runs_ms = -1
+threshold_to_save_all_runs_ms = 600_000
 
 deck_height = -np.inf
 game_camera_number = 2

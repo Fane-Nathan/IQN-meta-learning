@@ -27,8 +27,8 @@ else:
     import win32gui
     import win32process
 
-run_speed = 20
-timeout = 10
+run_speed = 10
+timeout = 300
 
 
 def _set_window_focus(tm_window_id):
@@ -89,21 +89,14 @@ def launch_game(tmi_port):
             + '"'
         )
 
-        tmi_process_id = int(subprocess.check_output(launch_string).decode().split("\r\n")[1])
+        # tmi_process_id = int(subprocess.check_output(launch_string).decode().split("\r\n")[1])
+        # Wait for TmForever to start
         while tm_process_id is None:
-            tm_processes = list(
-                filter(
-                    lambda s: s.startswith("TmForever"),
-                    subprocess.check_output("wmic process get Caption,ParentProcessId,ProcessId").decode().split("\r\n"),
-                )
-            )
-            for process in tm_processes:
-                name, parent_id, process_id = process.split()
-                parent_id = int(parent_id)
-                process_id = int(process_id)
-                if parent_id == tmi_process_id:
-                    tm_process_id = process_id
-                    break
+            for proc in psutil.process_iter(['pid', 'name', 'ppid']):
+                if proc.info['name'] and proc.info['name'].startswith("TmForever"):
+                     tm_process_id = proc.info['pid']
+                     break
+            time.sleep(0.1)
 
     assert tm_process_id is not None
     print(f"Found Trackmania process id: {tm_process_id=}")
@@ -188,87 +181,100 @@ def main():
     last_message_time = time.perf_counter()
     # _set_window_focus(tm_window_id)
     while current_input_idx < len(input_files):
-        # if need_to_get_out_of_menu and time.perf_counter()-last_enter_press>0.05:
-        #    press_enter(3)
-        #    need_to_get_out_of_menu = False
-        if expecting_replay_file:
-            if replay_file_ready():
-                output_filename = input_files[current_input_idx][: input_files[current_input_idx].rfind(".")] + ".Replay.Gbx"
-                shutil.move(pr_replay_path / pr_replay_filename, os.path.join(outputs_folder, output_filename))
-                current_input_idx += 1
-                expecting_replay_file = False
-                give_up_signal_has_been_sent = False
-                files_per_second = current_input_idx / (time.perf_counter() - start_time)
-                reconnect()
-                print(
-                    current_input_idx,
-                    "/",
-                    len(input_files),
-                    "files in",
-                    time.perf_counter() - start_time,
-                    "s. ETA",
-                    (len(input_files) - current_input_idx) / files_per_second,
-                    "s",
-                )
-            elif time.perf_counter() - last_enter_press > 0.05:
-                for _ in range(3):
-                    time.sleep(0.1)
-                    press_enter()
-        if iface.registered:
-            msgtype = iface._read_int32()
-            if msgtype == int(MessageType.SC_RUN_STEP_SYNC):
-                # print("On step")
-                _time = iface._read_int32()
-                if not give_up_signal_has_been_sent:
-                    iface.execute_command("load " + input_files[current_input_idx])
-                    iface.give_up()
-                    give_up_signal_has_been_sent = True
-                elif _time > args.cutoff_time * 1000 and not expecting_replay_file:
-                    # expecting_replay_file = True
-                    iface.execute_command("finish")
-                    # request_map(iface,args.map_path)
-                iface._respond_to_call(msgtype)
-            elif msgtype == int(MessageType.SC_CHECKPOINT_COUNT_CHANGED_SYNC):
-                # print("On CP")
-                current = iface._read_int32()
-                target = iface._read_int32()
-                if current == target and not expecting_replay_file:  # Run finished
-                    expecting_replay_file = True
-                    # press_enter()
-                    iface.close()
-                    # iface.prevent_simulation_finish()
-                else:
+        try:
+            # if need_to_get_out_of_menu and time.perf_counter()-last_enter_press>0.05:
+            #    press_enter(3)
+            #    need_to_get_out_of_menu = False
+            if expecting_replay_file:
+                if replay_file_ready():
+                    output_filename = input_files[current_input_idx][: input_files[current_input_idx].rfind(".")] + ".Replay.Gbx"
+                    shutil.move(pr_replay_path / pr_replay_filename, os.path.join(outputs_folder, output_filename))
+                    current_input_idx += 1
+                    expecting_replay_file = False
+                    give_up_signal_has_been_sent = False
+                    files_per_second = current_input_idx / (time.perf_counter() - start_time)
+                    reconnect()
+                    print(
+                        current_input_idx,
+                        "/",
+                        len(input_files),
+                        "files in",
+                        time.perf_counter() - start_time,
+                        "s. ETA",
+                        (len(input_files) - current_input_idx) / files_per_second,
+                        "s",
+                    )
+                elif time.perf_counter() - last_enter_press > 0.05:
+                    for _ in range(3):
+                        time.sleep(0.1)
+                        press_enter()
+            if iface.registered:
+                msgtype = iface._read_int32()
+                if msgtype == int(MessageType.SC_RUN_STEP_SYNC):
+                    # print("On step")
+                    _time = iface._read_int32()
+                    if not give_up_signal_has_been_sent:
+                        iface.execute_command("load " + input_files[current_input_idx])
+                        iface.give_up()
+                        give_up_signal_has_been_sent = True
+                    elif _time > args.cutoff_time * 1000 and not expecting_replay_file:
+                        # expecting_replay_file = True
+                        iface.execute_command("finish")
+                        # request_map(iface,args.map_path)
                     iface._respond_to_call(msgtype)
-            elif msgtype == int(MessageType.SC_LAP_COUNT_CHANGED_SYNC):
-                # print("On lap")
-                iface._read_int32()
-                iface._read_int32()
-                iface._respond_to_call(msgtype)
-            elif msgtype == int(MessageType.SC_REQUESTED_FRAME_SYNC):
-                iface._respond_to_call(msgtype)
-            elif msgtype == int(MessageType.C_SHUTDOWN):
-                iface.close()
-            elif msgtype == int(MessageType.SC_ON_CONNECT_SYNC):
-                iface.execute_command(f"set autologin {config.username}")
-                iface.execute_command(f"set auto_reload_plugins false")
-                if console_open:
-                    iface.execute_command("toggle_console")
-                    console_open = False
-                iface.execute_command("set scripts_folder " + inputs_folder)
-                iface.set_timeout(timeout * 1000)
-                iface.set_speed(run_speed)
-                iface.execute_command(f"set countdown_speed " + str(run_speed))
-                iface.execute_command(f"set temp_save_states_collect false")
-                iface.execute_command(f"set skip_map_load_screens true")
-                map_loader.hide_personal_record_replay(args.map_path, True)
-                if not map_loaded:
-                    request_map(iface, args.map_path)
-                    map_loaded = True
-                # else:
-                #    need_to_get_out_of_menu = True
-                iface._respond_to_call(msgtype)
-            else:
-                pass
+                elif msgtype == int(MessageType.SC_CHECKPOINT_COUNT_CHANGED_SYNC):
+                    # print("On CP")
+                    current = iface._read_int32()
+                    target = iface._read_int32()
+                    if current == target and not expecting_replay_file:  # Run finished
+                        expecting_replay_file = True
+                        # press_enter()
+                        iface.close()
+                        # iface.prevent_simulation_finish()
+                    else:
+                        iface._respond_to_call(msgtype)
+                elif msgtype == int(MessageType.SC_LAP_COUNT_CHANGED_SYNC):
+                    # print("On lap")
+                    iface._read_int32()
+                    iface._read_int32()
+                    iface._respond_to_call(msgtype)
+                elif msgtype == int(MessageType.SC_REQUESTED_FRAME_SYNC):
+                    iface._respond_to_call(msgtype)
+                elif msgtype == int(MessageType.C_SHUTDOWN):
+                    iface.close()
+                elif msgtype == int(MessageType.SC_ON_CONNECT_SYNC):
+                    iface.execute_command(f"set autologin {config.username}")
+                    iface.execute_command(f"set auto_reload_plugins false")
+                    if console_open:
+                        iface.execute_command("toggle_console")
+                        console_open = False
+                    iface.execute_command("set scripts_folder " + inputs_folder)
+                    iface.set_timeout(timeout * 1000)
+                    iface.set_speed(run_speed)
+                    iface.execute_command(f"set countdown_speed " + str(run_speed))
+                    iface.execute_command(f"set temp_save_states_collect false")
+                    iface.execute_command(f"set skip_map_load_screens true")
+                    map_loader.hide_personal_record_replay(args.map_path, True)
+                    if not map_loaded:
+                        request_map(iface, args.map_path)
+                        map_loaded = True
+                    # else:
+                    #    need_to_get_out_of_menu = True
+                    iface._respond_to_call(msgtype)
+                else:
+                    pass
+        except TimeoutError:
+            print(f"⚠️ Timeout on file {input_files[current_input_idx]}. Skipping...")
+            current_input_idx += 1
+            expecting_replay_file = False
+            give_up_signal_has_been_sent = False
+            reconnect()
+        except Exception as e:
+            print(f"⚠️ Error on file {input_files[current_input_idx]}: {e}. Skipping...")
+            current_input_idx += 1
+            expecting_replay_file = False
+            give_up_signal_has_been_sent = False
+            reconnect()
     close_game(tm_process_id)
 
 

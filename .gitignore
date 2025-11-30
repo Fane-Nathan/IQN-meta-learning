@@ -32,3 +32,8 @@ Nadeo.ini
 *.lnk
 .stignore*
 config_files/config_copy.py
+venv/
+states/
+replays_to_render/
+*.parquet
+*.png
