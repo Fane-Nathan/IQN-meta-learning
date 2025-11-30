@@ -158,7 +158,7 @@ def train_crash_predictor(X, y, feature_names, output_dir):
     plt.figure(figsize=(12, 8))
     names = [x[0] for x in top_features]
     scores = [x[1] for x in top_features]
-    sns.barplot(x=scores, y=names, palette="viridis")
+    sns.barplot(x=scores, y=names, hue=names, palette="viridis", legend=False)
     plt.title("Feature Importance: What predicts a crash 1s ahead?")
     plt.xlabel("Importance Score")
     plt.tight_layout()

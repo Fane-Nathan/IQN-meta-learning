@@ -29,7 +29,7 @@ W_downsized = 160
 H_downsized = 120
 
 run_name = "felix_test_training"
-running_speed = 100
+running_speed = 80
 
 tm_engine_step_per_action = 2 # for a faster reflex agent rollout
 ms_per_tm_engine_step = 10
@@ -41,7 +41,7 @@ n_zone_centers_extrapolate_before_start_of_map = 20
 n_prev_actions_in_inputs = 5
 n_contact_material_physics_behavior_types = 4  # See contact_materials.py
 cutoff_rollout_if_race_not_finished_within_duration_ms = 300_000
-cutoff_rollout_if_no_vcp_passed_within_duration_ms = 15_000
+cutoff_rollout_if_no_vcp_passed_within_duration_ms = 10_000
 
 temporal_mini_race_duration_ms = 7000
 temporal_mini_race_duration_actions = temporal_mini_race_duration_ms // ms_per_action
@@ -192,6 +192,15 @@ deck_height = -np.inf
 game_camera_number = 2
 
 sync_virtual_and_real_checkpoints = True
+
+# ===============================================
+#   TRAINING MODE CONFIGURATION
+# ===============================================
+# "standard": Always start at Zone 0. Passive Teacher.
+# "focused": Teacher forces spawn at "Kill Zone".
+# "hybrid": Always start at Zone 0. If crash at "Kill Zone", Instant Replay X times.
+TRAINING_MODE = "hybrid"
+INSTANT_REPLAY_ATTEMPTS = 5
 
 """ 
 ============================================      MAP CYCLE     =======================================================

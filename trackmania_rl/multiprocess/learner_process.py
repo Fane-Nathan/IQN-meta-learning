@@ -321,8 +321,6 @@ def learner_process_fn(
                 np.array(rollout_results["q_values"]) - np.array(rollout_results["q_values"]).max(axis=1, initial=None).reshape(-1, 1)
             ).mean(),
             f"single_zone_reached_{map_status}_{map_name}": rollout_results["furthest_zone_idx"],
-            "instrumentation__answer_normal_step": end_race_stats["instrumentation__answer_normal_step"],
-            "instrumentation__answer_action_step": end_race_stats["instrumentation__answer_action_step"],
             "instrumentation__between_run_steps": end_race_stats["instrumentation__between_run_steps"],
             "instrumentation__grab_frame": end_race_stats["instrumentation__grab_frame"],
             "instrumentation__convert_frame": end_race_stats["instrumentation__convert_frame"],
@@ -544,6 +542,34 @@ def learner_process_fn(
 
                     accumulated_stats["cumul_number_batches_done"] += 1
                     print(f"B    {loss=:<8.2e} {grad_norm=:<8.2e} {train_on_batch_duration_history[-1]*1000:<8.1f}")
+
+                    # ===============================================
+                    #   AUTOMATED CURRICULUM UPDATE (TEACHER)
+                    # ===============================================
+                    if accumulated_stats["cumul_number_batches_done"] % 500 == 0:
+                        try:
+                            if str(base_dir / "scripts") not in sys.path:
+                                sys.path.append(str(base_dir / "scripts"))
+                            import curriculum_manager
+                            import merge_rollouts
+                            
+                            print("\n🎓 Teacher: Merging latest rollouts...")
+                            # Use defaults from merge_rollouts.py or specify paths if needed
+                            # Default source: "save/felix_test_training/good_runs"
+                            # Default out: "merged_rollouts.parquet"
+                            # We should probably make these dynamic based on config_copy.run_name
+                            source_dir = base_dir / "save" / config_copy.run_name / "good_runs"
+                            merge_rollouts.merge_parquet_files(
+                                source_dir=str(source_dir),
+                                output_file="merged_rollouts.parquet",
+                                chunk_size_rows=2_500_000 # ~1GB per file
+                            )
+                            
+                            print("🎓 Teacher: Analyzing Student Performance...")
+                            curriculum_manager.run_teacher_step()
+                            print("🎓 Teacher finished.\n")
+                        except Exception as e:
+                            print(f"⚠️ Failed to run teacher: {e}")
 
                     # Log to CSV
                     try:

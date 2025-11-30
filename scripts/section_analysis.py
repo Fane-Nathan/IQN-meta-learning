@@ -31,6 +31,12 @@ def load_data(data_dir="."):
     df = pd.concat(dfs, ignore_index=True)
     print(f"Loaded {len(df)} rows of data.")
     
+    # Keep only recent data (e.g. last 500k frames) to ensure Teacher sees current performance
+    max_rows = 500_000
+    if len(df) > max_rows:
+        print(f"Filtering to last {max_rows} rows for freshness...")
+        df = df.iloc[-max_rows:].copy()
+    
     # Filter out rows with inconsistent state_float lengths or None
     df = df.dropna(subset=["state_float"])
     lengths = df["state_float"].apply(len)
@@ -95,7 +101,7 @@ def analyze_zone_performance(df, output_dir):
     # Get Top 50 by Crash Rate
     top_crash_zones = significant_zones.sort_values("crash_rate", ascending=False).head(50)
     
-    sns.barplot(data=top_crash_zones, x="current_zone_idx", y="crash_rate", palette="Reds_r", order=top_crash_zones["current_zone_idx"])
+    sns.barplot(data=top_crash_zones, x="current_zone_idx", y="crash_rate", hue="current_zone_idx", palette="Reds_r", order=top_crash_zones["current_zone_idx"], legend=False)
     plt.title("Top 50 'Struggle Zones' (Highest Crash Rate)")
     plt.xlabel("Zone ID")
     plt.ylabel("Crash Rate (%)")

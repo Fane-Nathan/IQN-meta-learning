@@ -268,7 +268,7 @@ class GameInstanceManager:
             self.max_allowable_distance_to_real_checkpoint,
         ) = map_loader.sync_virtual_and_real_checkpoints(zone_centers, map_path)
 
-    def rollout(self, exploration_policy: Callable, map_path: str, zone_centers: npt.NDArray, update_network: Callable, epsilon: float = 0.0, epsilon_boltzmann: float = 0.0, start_state=None, save_states_dir=None):
+    def rollout(self, exploration_policy: Callable, map_path: str, zone_centers: npt.NDArray, update_network: Callable, epsilon: float = 0.0, epsilon_boltzmann: float = 0.0, start_state=None, save_states_dir=None, focus_zone=None):
         (
             zone_transitions,
             distance_between_zone_transitions,
@@ -449,12 +449,32 @@ class GameInstanceManager:
                             try:
                                 # Save the RAW bytes of the SimStateData
                                 state_bytes = last_known_simulation_state.data
+                                current_race_time = last_known_simulation_state.race_time
                                 
                                 save_path = save_states_dir / f"zone_{current_zone_idx}.pkl"
-                                if not save_path.exists():
+                                time_path = save_states_dir / f"zone_{current_zone_idx}.time"
+                                
+                                should_save = False
+                                if not time_path.exists():
+                                    should_save = True
+                                else:
+                                    try:
+                                        with open(time_path, "r") as f:
+                                            best_time = float(f.read().strip())
+                                        if current_race_time < best_time:
+                                            should_save = True
+                                            print(f"🚀 New Record for Zone {current_zone_idx}: {current_race_time}ms (was {best_time}ms)")
+                                    except:
+                                        should_save = True # Overwrite corrupt time file
+
+                                if should_save:
                                     with open(save_path, "wb") as f:
                                         pickle.dump(state_bytes, f)
-                                    print(f"💾 Saved state for Zone {current_zone_idx}")
+                                    with open(time_path, "w") as f:
+                                        f.write(str(current_race_time))
+                                    
+                                    if not time_path.exists(): # First time (logic check, though we just wrote it)
+                                        print(f"💾 Saved state for Zone {current_zone_idx} ({current_race_time}ms)")
                             except Exception as e:
                                 print(f"Failed to save state: {e}")
 
@@ -553,19 +573,6 @@ class GameInstanceManager:
                         self.UI_disabled = True
 
                     if _time == 0 and (map_path not in self.start_states):
-                        self.start_states[map_path] = self.iface.get_simulation_state()
-
-                    if (not give_up_signal_has_been_sent) and (map_path != self.latest_map_path_requested):
-                        self.request_map(map_path, zone_centers)
-
-                        map_change_requested_time = _time
-                        give_up_signal_has_been_sent = True
-                    elif (not give_up_signal_has_been_sent) and (map_path not in self.start_states):
-                        self.iface.give_up()
-                        give_up_signal_has_been_sent = True
-                    elif not give_up_signal_has_been_sent:
-                        self.iface.rewind_to_state(self.start_states[map_path])
-                        _time = 0
                         give_up_signal_has_been_sent = True
                         this_rollout_has_seen_t_negative = True
                     elif (
@@ -803,5 +810,18 @@ class GameInstanceManager:
             end_race_stats["tmi_protection_cutoff"] = True
             self.last_rollout_crashed = True
             ensure_not_minimized(self.tm_window_id)
+
+        # SAFEGUARD: Ensure frames and zone indices are synced
+        n_frames = len(rollout_results["frames"])
+        n_zones = len(rollout_results["current_zone_idx"])
+        if n_frames != n_zones:
+            print(f"⚠️ Sync Mismatch! Frames: {n_frames}, Zones: {n_zones}. Truncating to min.")
+            min_len = min(n_frames, n_zones)
+            rollout_results["frames"] = rollout_results["frames"][:min_len]
+            rollout_results["current_zone_idx"] = rollout_results["current_zone_idx"][:min_len]
+            # Also truncate other lists to be safe
+            for key in ["input_w", "actions", "action_was_greedy", "car_gear_and_wheels", "q_values", "meters_advanced_along_centerline", "state_float", "step_race_times", "epsilon", "epsilon_boltzmann", "x", "y", "z"]:
+                if key in rollout_results and len(rollout_results[key]) > min_len:
+                     rollout_results[key] = rollout_results[key][:min_len]
 
         return rollout_results, end_race_stats

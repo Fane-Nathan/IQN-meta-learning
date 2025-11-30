@@ -111,12 +111,17 @@ def collector_process_fn(
         #   CURRICULUM LEARNING (The Student)
         # ===============================================
         start_state = None
+        focus_zone = None
         try:
             config_path = base_dir / "curriculum_config.txt"
             if config_path.exists():
                 with open(config_path, "r") as f:
                     for line in f:
                         if "FORCE_SPAWN_ZONE" in line:
+                            # HYBRID MODE OVERRIDE: Ignore FORCE_SPAWN_ZONE to ensure full map runs
+                            if hasattr(config_copy, "TRAINING_MODE") and config_copy.TRAINING_MODE == "hybrid":
+                                continue
+
                             val = line.split("=")[1].strip()
                             if val != "None":
                                 zone_idx = int(val)
@@ -125,9 +130,12 @@ def collector_process_fn(
                                     import pickle
                                     with open(state_path, "rb") as sf:
                                         start_state = pickle.load(sf)
-                                    # print(f"👻 Resurrection: Loading state for Zone {zone_idx}")
                                 else:
                                     print(f"⚠️ Curriculum: State file not found: {state_path}")
+                        if "FOCUS_ZONE" in line:
+                            val = line.split("=")[1].strip()
+                            if val != "None":
+                                focus_zone = int(val)
         except Exception as e:
             print(f"Curriculum Error: {e}")
 
@@ -157,8 +165,9 @@ def collector_process_fn(
             update_network=update_network,
             epsilon=inferer.epsilon,
             epsilon_boltzmann=inferer.epsilon_boltzmann,
-            start_state=start_state,  # <--- Added this
-            save_states_dir=base_dir / "states", # <--- Added this
+            start_state=start_state,
+            save_states_dir=base_dir / "states",
+            focus_zone=focus_zone, # Pass the focus zone for Instant Replay
         )
         rollout_end_time = time.perf_counter()
         rollout_duration = rollout_end_time - rollout_start_time

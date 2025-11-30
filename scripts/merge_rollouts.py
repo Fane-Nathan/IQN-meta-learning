@@ -12,6 +12,8 @@ def merge_parquet_files(source_dir, output_file, chunk_size_rows):
 
     # Find all parquet files matching the pattern
     parquet_files = list(source_path.glob("rollout_data_*.parquet"))
+    # Sort by filename (which includes timestamp) to ensure chronological order
+    parquet_files.sort(key=lambda x: x.name)
     
     if not parquet_files:
         print(f"No 'rollout_data_*.parquet' files found in '{source_dir}'.")

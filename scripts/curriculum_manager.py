@@ -8,6 +8,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__)))
 
 import section_analysis
 import root_cause_analysis
+from config_files import config
 
 def run_teacher_step():
     print("🎓 Teacher: Analyzing Student Performance...")
@@ -38,14 +39,22 @@ def run_teacher_step():
     if not candidates.empty:
         # Pick the earliest one (the bottleneck)
         hardest_zone = candidates["current_zone_idx"].min()
-        print(f"🎓 Teacher: Student is stuck at Zone {hardest_zone} (Crash Rate: {candidates.loc[candidates['current_zone_idx'] == hardest_zone, 'crash_rate'].values[0]:.1f}%). Forcing practice there.")
+        print(f"🎓 Teacher: Student is stuck at Zone {hardest_zone} (Crash Rate: {candidates.loc[candidates['current_zone_idx'] == hardest_zone, 'crash_rate'].values[0]:.1f}%).")
         
-        # Spawn slightly before it
-        spawn_zone = max(0, hardest_zone - 2)
-        curriculum_update["FORCE_SPAWN_ZONE"] = spawn_zone
+        if hasattr(config, "TRAINING_MODE") and config.TRAINING_MODE == "hybrid":
+             print(f"   -> Hybrid Mode: Setting FOCUS_ZONE={hardest_zone} for Instant Replay practice.")
+             curriculum_update["FORCE_SPAWN_ZONE"] = "None" # Always start at 0
+             curriculum_update["FOCUS_ZONE"] = hardest_zone
+        else:
+             print(f"   -> Focused Mode: Forcing spawn at Zone {max(0, hardest_zone - 2)}.")
+             # Spawn slightly before it
+             spawn_zone = max(0, hardest_zone - 2)
+             curriculum_update["FORCE_SPAWN_ZONE"] = spawn_zone
+             curriculum_update["FOCUS_ZONE"] = "None"
     else:
         print("🎓 Teacher: Student is progressing well. Standard spawning.")
         curriculum_update["FORCE_SPAWN_ZONE"] = "None"
+        curriculum_update["FOCUS_ZONE"] = "None"
 
     # 3. Check Root Causes for Hyperparams
     X, y, features = root_cause_analysis.create_dataset(df)
