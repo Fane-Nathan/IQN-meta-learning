@@ -1,5 +1,5 @@
 {
-  "total_runs": 159,
+  "total_runs": 160,
   "last_frontier": 0,
   "frontier_history": [
     {
@@ -9,10 +9,10 @@
   ],
   "last_record_run": {},
   "zone_attempts": {
-    "0": 159
+    "0": 160
   },
   "zone_successes": {
-    "0": 159
+    "0": 160
   },
   "zone_best_times": {},
   "spawn_zone": 0,
