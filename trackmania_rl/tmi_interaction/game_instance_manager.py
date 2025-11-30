@@ -52,9 +52,12 @@ def _set_window_focus(trackmania_window):
     if config_copy.is_linux:
         Xdo().activate_window(trackmania_window)
     else:
-        shell = win32com.client.Dispatch("WScript.Shell")
-        shell.SendKeys("%")
-        win32gui.SetForegroundWindow(trackmania_window)
+        try:
+            shell = win32com.client.Dispatch("WScript.Shell")
+            shell.SendKeys("%")
+            win32gui.SetForegroundWindow(trackmania_window)
+        except Exception as e:
+            print(f"Warning: Could not set window focus: {e}")
 
 
 def ensure_not_minimized(trackmania_window):
@@ -268,7 +271,7 @@ class GameInstanceManager:
             self.max_allowable_distance_to_real_checkpoint,
         ) = map_loader.sync_virtual_and_real_checkpoints(zone_centers, map_path)
 
-    def rollout(self, exploration_policy: Callable, map_path: str, zone_centers: npt.NDArray, update_network: Callable, epsilon: float = 0.0, epsilon_boltzmann: float = 0.0, start_state=None, save_states_dir=None, focus_zone=None):
+    def rollout(self, exploration_policy: Callable, map_path: str, zone_centers: npt.NDArray, update_network: Callable, epsilon: float = 0.0, epsilon_boltzmann: float = 0.0, start_state=None, save_states_dir=None, focus_zone=None, start_zone_idx=None):
         (
             zone_transitions,
             distance_between_zone_transitions,
@@ -315,6 +318,7 @@ class GameInstanceManager:
         }
 
         last_progress_improvement_ms = 0
+        max_meters_advanced = -1000.0
 
         if (self.iface is None) or (not self.iface.registered):
             assert self.msgtype_response_to_wakeup_TMI is None
@@ -338,8 +342,15 @@ class GameInstanceManager:
             self.request_speed(self.running_speed)
             if self.msgtype_response_to_wakeup_TMI is not None:
                 self.iface._respond_to_call(self.msgtype_response_to_wakeup_TMI)
-                self.msgtype_response_to_wakeup_TMI = None
-                
+                self.msgtype_response_to_wakeup_TMI = None    
+            
+            self.iface.give_up()
+            print("🔄 Race restart requested")
+
+        give_up_signal_has_been_sent = False
+        this_rollout_has_seen_t_negative = False
+        current_zone_idx = config_copy.n_zone_centers_extrapolate_before_start_of_map
+
         # CURRICULUM: Load Start State
         if start_state is not None:
             try:
@@ -348,6 +359,14 @@ class GameInstanceManager:
                 from tminterface.structs import SimStateData
                 state_obj = SimStateData(start_state)
                 self.iface.rewind_to_state(state_obj)
+                
+                # Resurrection successful: assume race has started
+                give_up_signal_has_been_sent = True
+                this_rollout_has_seen_t_negative = True
+                if start_zone_idx is not None:
+                    current_zone_idx = start_zone_idx
+                    print(f"👻 Resurrected at Zone {current_zone_idx}")
+
             except Exception as e:
                 print(f"Resurrection Failed: {e}")
         elif start_state is None and save_states_dir is not None:
@@ -364,10 +383,7 @@ class GameInstanceManager:
         self.last_rollout_crashed = False
 
         _time = -3000
-        current_zone_idx = config_copy.n_zone_centers_extrapolate_before_start_of_map
-
-        give_up_signal_has_been_sent = False
-        this_rollout_has_seen_t_negative = False
+        # current_zone_idx, give_up_signal_has_been_sent, this_rollout_has_seen_t_negative initialized above
         this_rollout_is_finished = False
         n_th_action_we_compute = 0
         compute_action_asap = False
@@ -491,6 +507,11 @@ class GameInstanceManager:
                     distance_since_track_begin = (
                         distance_from_start_track_to_prev_zone_transition[current_zone_idx - 1] + meters_in_current_zone
                     )
+
+                    # Update progress timer to prevent premature timeout
+                    if distance_since_track_begin > max_meters_advanced + 1.0: # 1 meter threshold
+                        max_meters_advanced = distance_since_track_begin
+                        last_progress_improvement_ms = _time
 
                     # ==== Construct features
                     state_zone_center_coordinates_in_car_reference_system = sim_state_orientation.dot(

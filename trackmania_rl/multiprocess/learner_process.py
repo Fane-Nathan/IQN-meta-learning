@@ -550,7 +550,7 @@ def learner_process_fn(
                         try:
                             if str(base_dir / "scripts") not in sys.path:
                                 sys.path.append(str(base_dir / "scripts"))
-                            import curriculum_manager
+                            import curriculum_manager_v2 as curriculum_manager
                             import merge_rollouts
                             
                             print("\n🎓 Teacher: Merging latest rollouts...")

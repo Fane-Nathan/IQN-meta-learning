@@ -1,0 +1,21 @@
+{
+  "total_runs": 159,
+  "last_frontier": 0,
+  "frontier_history": [
+    {
+      "run": 100,
+      "frontier": 0
+    }
+  ],
+  "last_record_run": {},
+  "zone_attempts": {
+    "0": 159
+  },
+  "zone_successes": {
+    "0": 159
+  },
+  "zone_best_times": {},
+  "spawn_zone": 0,
+  "last_advancement_run": 0,
+  "created_at": "2025-11-30T19:54:59.446944"
+}
