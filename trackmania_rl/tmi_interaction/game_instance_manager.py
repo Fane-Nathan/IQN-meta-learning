@@ -774,14 +774,6 @@ class GameInstanceManager:
                         compute_action_asap = False
                         n_th_action_we_compute += 1
 
-                        if not self.game_activated:
-                            _set_window_focus(self.tm_window_id)
-                            self.game_activated = True
-                            if config_copy.is_linux:
-                                # With the switch to ModLoader, we observed that the game instance needs to be focused once to work properly,
-                                # but this needs to be done late enough AND not when another game instance is starting.
-                                self.game_spawning_lock.release()
-
                         instrumentation__request_inputs_and_speed += time.perf_counter_ns() - pc8
                     self.iface._respond_to_call(msgtype)
                 elif msgtype == int(MessageType.C_SHUTDOWN):
@@ -801,6 +793,17 @@ class GameInstanceManager:
                     if self.iface.is_in_menus() and map_path != self.latest_map_path_requested:
                         print("Requested map load")
                         self.request_map(map_path, zone_centers)
+
+                    # Activate game window early to prevent user control during training
+                    if not self.game_activated:
+                        ensure_not_minimized(self.tm_window_id)
+                        _set_window_focus(self.tm_window_id)
+                        self.game_activated = True
+                        if config_copy.is_linux:
+                            # With the switch to ModLoader, we observed that the game instance needs to be focused once to work properly,
+                            # but this needs to be done late enough AND not when another game instance is starting.
+                            self.game_spawning_lock.release()
+
                     self.iface._respond_to_call(msgtype)
                 else:
                     pass
