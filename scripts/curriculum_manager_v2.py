@@ -163,7 +163,7 @@ def detect_frontier(df, min_visits=MIN_VISITS_FOR_FRONTIER, percentile=FRONTIER_
     return frontier, stats
 
 
-def detect_kill_zones(df, crash_threshold=20, min_visits=50):
+def detect_kill_zones(df, crash_threshold=20, min_visits=300):
     """
     Find zones with high crash rates (original curriculum logic).
     
