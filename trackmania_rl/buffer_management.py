@@ -95,6 +95,11 @@ def fill_buffer_from_rollout_with_n_steps_rule(
                     config_copy.engineered_reward_min_dist_to_cur_vcp,
                     min(config_copy.engineered_reward_max_dist_to_cur_vcp, np.linalg.norm(rollout_results["state_float"][i][62:65])),
                 )
+            
+            # WRONG WAY PENALTY (User Request)
+            # Index 58 is forward velocity. If < -1.0 m/s, apply penalty.
+            if rollout_results["state_float"][i][58] < -1.0:
+                reward_into[i] -= 0.1  # Heavy penalty for reversing
     for i in range(n_frames - 1):  # Loop over all frames that were generated
         # Switch memory buffer sometimes
         if random.random() < 0.1:

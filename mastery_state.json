@@ -1,5 +1,5 @@
 {
-  "total_runs": 508,
+  "total_runs": 1421,
   "last_frontier": 0,
   "frontier_history": [
     {
@@ -21,17 +21,53 @@
     {
       "run": 500,
       "frontier": 0
+    },
+    {
+      "run": 600,
+      "frontier": 0
+    },
+    {
+      "run": 700,
+      "frontier": 0
+    },
+    {
+      "run": 800,
+      "frontier": 0
+    },
+    {
+      "run": 900,
+      "frontier": 0
+    },
+    {
+      "run": 1000,
+      "frontier": 0
+    },
+    {
+      "run": 1100,
+      "frontier": 0
+    },
+    {
+      "run": 1200,
+      "frontier": 0
+    },
+    {
+      "run": 1300,
+      "frontier": 0
+    },
+    {
+      "run": 1400,
+      "frontier": 0
     }
   ],
   "last_record_run": {},
   "zone_attempts": {
-    "0": 508
+    "0": 1421
   },
   "zone_successes": {
-    "0": 508
+    "0": 1421
   },
   "zone_best_times": {},
   "spawn_zone": 200,
-  "last_advancement_run": 300,
+  "last_advancement_run": 1200,
   "created_at": "2025-11-30T19:54:59.446944"
 }

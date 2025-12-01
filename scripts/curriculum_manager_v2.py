@@ -40,6 +40,7 @@ FRONTIER_PERCENTILE = 95            # Use 95th percentile of reached zones
 STAGNATION_THRESHOLD = 3            # Force advance after N stagnant iterations
 SPAWN_BUFFER_ZONES = 50             # Spawn this many zones BEFORE frontier
 ADVANCEMENT_STEP = 100              # When forcing advance, jump this many zones
+MIN_SPAWN_ZONE = 20                 # Minimum allowable spawn zone (Map Start)
 
 # Track parameters (should match your map)
 TOTAL_ZONES = 8000                  # Total zones in your track
@@ -94,6 +95,7 @@ def load_zone_data(zone_stats_path="zone_stats.csv"):
     if not os.path.exists(zone_stats_path):
         # Try alternative paths
         alt_paths = [
+            "analysis_results_section/zone_stats.csv", # New path from overhauled script
             "analysis_results_curriculum/zone_stats.csv",
             "scripts/zone_stats.csv",
             "../zone_stats.csv"
@@ -208,7 +210,7 @@ def calculate_spawn_zone(frontier, state, kill_zones):
     
     # If there's a kill zone, focus on it first
     if early_kill_zone:
-        spawn = max(0, early_kill_zone[0] - 10)
+        spawn = max(MIN_SPAWN_ZONE, early_kill_zone[0] - 10)
         return spawn, f"Kill Zone detected at {early_kill_zone[0]} ({early_kill_zone[1]:.1f}% crash rate)"
     
     # Check for stagnation
@@ -218,7 +220,7 @@ def calculate_spawn_zone(frontier, state, kill_zones):
     if frontier_improved:
         # Good progress! Reset stagnation, spawn near new frontier
         state["stagnation_count"] = 0
-        spawn = max(0, frontier - SPAWN_BUFFER_ZONES)
+        spawn = max(MIN_SPAWN_ZONE, frontier - SPAWN_BUFFER_ZONES)
         return spawn, f"Frontier advanced to {frontier} (was {prev_frontier})"
     
     # Frontier stagnated
@@ -231,7 +233,7 @@ def calculate_spawn_zone(frontier, state, kill_zones):
         return forced_zone, f"FORCED ADVANCE: Stagnant at {frontier} for {STAGNATION_THRESHOLD} iterations"
     
     # Normal case: spawn near frontier
-    spawn = max(0, frontier - SPAWN_BUFFER_ZONES)
+    spawn = max(MIN_SPAWN_ZONE, frontier - SPAWN_BUFFER_ZONES)
     return spawn, f"Frontier at {frontier} (stagnation: {state['stagnation_count']}/{STAGNATION_THRESHOLD})"
 
 
@@ -273,6 +275,14 @@ def run_teacher_step():
     print(f"\n📂 Previous frontier: Zone {state['last_frontier']}")
     print(f"📂 Stagnation count: {state['stagnation_count']}")
     
+    # Run fresh analysis using the new script
+    try:
+        import section_analysis
+        print("\n📊 Running Section Analysis...")
+        section_analysis.main()
+    except Exception as e:
+        print(f"⚠️ Failed to run section_analysis: {e}")
+
     # Load zone data
     df = load_zone_data()
     if df is None:
