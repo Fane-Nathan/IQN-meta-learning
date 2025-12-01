@@ -398,6 +398,8 @@ class GameInstanceManager:
         distance_since_track_begin = 0
         sim_state_car_gear_and_wheels = None
 
+        retry_count = 0 # Initialize retry counter for Instant Replay
+
         try:
             while not this_rollout_is_finished:
                 if compute_action_asap_floats:
@@ -643,6 +645,64 @@ class GameInstanceManager:
                         end_race_stats["tmi_protection_cutoff"] = False
 
                         self.iface.rewind_to_current_state()
+
+                        # =========================================================
+                        # INSTANT REPLAY LOGIC
+                        # =========================================================
+                        instant_replay_triggered = False
+                        if focus_zone is not None and retry_count < 3:
+                            # Check if we are close to the focus zone (e.g. within 20 zones)
+                            # Or if we just want to force practice on that specific zone
+                            dist_to_focus = abs(current_zone_idx - focus_zone)
+                            if dist_to_focus <= 20: 
+                                try:
+                                    print(f"🔄 Instant Replay: Crash at Zone {current_zone_idx}. Retrying Focus Zone {focus_zone} ({retry_count+1}/3)...")
+                                    
+                                    # Construct path to state file
+                                    # We need to know where 'states' dir is. It was passed as save_states_dir
+                                    if save_states_dir is not None:
+                                        state_path = save_states_dir / f"zone_{focus_zone}.pkl"
+                                        if state_path.exists():
+                                            import pickle
+                                            from tminterface.structs import SimStateData
+                                            with open(state_path, "rb") as f:
+                                                state_bytes = pickle.load(f)
+                                            state_obj = SimStateData(state_bytes)
+                                            self.iface.rewind_to_state(state_obj)
+                                            
+                                            # Reset loop variables for the replay
+                                            retry_count += 1
+                                            this_rollout_is_finished = False # Don't finish, continue outer loop
+                                            give_up_signal_has_been_sent = True # Treat as if race started
+                                            this_rollout_has_seen_t_negative = True
+                                            current_zone_idx = focus_zone
+                                            
+                                            # Reset stats for the new attempt (optional, or keep accumulating?)
+                                            # For now, we let the stats accumulate so the "crash" is recorded, 
+                                            # but the agent gets another shot in the same "episode" container.
+                                            # Actually, if we don't reset rollout_results, we might have a jump in data.
+                                            # But that's okay, it's just more training data.
+                                            
+                                            instant_replay_triggered = True
+                                            # We need to break out of the inner loop or continue? 
+                                            # We are at the end of the loop anyway.
+                                            # But wait, 'this_rollout_is_finished' was NOT set to True yet in this block.
+                                            # It was set to False above.
+                                            # Wait, looking at original code:
+                                            # end_race_stats["race_finished"] = False
+                                            # ...
+                                            # self.iface.rewind_to_current_state()
+                                            # ...
+                                            # The original code would exit the loop because 'this_rollout_is_finished' would be set?
+                                            # No, in the original code, it falls through.
+                                            # We need to ensure we DON'T exit if instant replay is triggered.
+                                        else:
+                                            print(f"⚠️ Instant Replay Failed: State file {state_path} not found.")
+                                except Exception as e:
+                                    print(f"⚠️ Instant Replay Error: {e}")
+
+                        if not instant_replay_triggered:
+                            this_rollout_is_finished = True # Only finish if NOT replaying
 
                         self.msgtype_response_to_wakeup_TMI = msgtype
                         self.iface.set_timeout(config_copy.timeout_between_runs_ms)
