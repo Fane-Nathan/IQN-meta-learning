@@ -8,7 +8,7 @@ import os
 
 def load_data(data_dir="."):
     print(f"Looking for parquet files in {data_dir}...")
-    files = glob.glob(os.path.join(data_dir, "merged_rollouts_part_*.parquet"))
+    files = sorted(glob.glob(os.path.join(data_dir, "merged_rollouts_part_*.parquet")))
     
     if not files:
         if os.path.exists(os.path.join(data_dir, "merged_rollouts.parquet")):

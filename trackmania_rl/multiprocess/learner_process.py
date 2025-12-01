@@ -319,7 +319,7 @@ def learner_process_fn(
             ],
             f"mean_action_gap_{map_name}": -(
                 np.array(rollout_results["q_values"]) - np.array(rollout_results["q_values"]).max(axis=1, initial=None).reshape(-1, 1)
-            ).mean(),
+            ).mean() if np.array(rollout_results["q_values"]).ndim > 1 else 0.0,
             f"single_zone_reached_{map_status}_{map_name}": rollout_results["furthest_zone_idx"],
             "instrumentation__between_run_steps": end_race_stats["instrumentation__between_run_steps"],
             "instrumentation__grab_frame": end_race_stats["instrumentation__grab_frame"],
@@ -363,7 +363,8 @@ def learner_process_fn(
                         )
 
         for i in [0]:
-            race_stats_to_write[f"q_value_{i}_starting_frame_{map_name}"] = end_race_stats[f"q_value_{i}_starting_frame"]
+            # Use .get() to avoid crashing if the key is missing
+            race_stats_to_write[f"q_value_{i}_starting_frame_{map_name}"] = end_race_stats.get(f"q_value_{i}_starting_frame", 0.0)
         if not is_explo:
             for i, split_time in enumerate(
                 [
@@ -538,6 +539,10 @@ def learner_process_fn(
                     loss_history.append(loss)
                     if not math.isinf(grad_norm):
                         grad_norm_history.append(grad_norm)
+                        if grad_norm > 1000:
+                            print(f"🔴 CRITICAL GRADIENT: {grad_norm:.0f} - consider reducing LR!")
+                        elif grad_norm > 100:
+                            print(f"🟡 HIGH GRADIENT: {grad_norm:.0f}")
                         # utilities.log_gradient_norms(online_network, layer_grad_norm_history) #~1ms overhead per batch
 
                     accumulated_stats["cumul_number_batches_done"] += 1

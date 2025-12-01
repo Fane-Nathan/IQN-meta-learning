@@ -107,9 +107,9 @@ memory_size_schedule = [
     (7_000_000 * global_schedule_speed, (200_000, 150_000)),
 ]
 lr_schedule = [
-    (0, 1e-3),
-    (3_000_000 * global_schedule_speed, 5e-5),
-    (12_000_000 * global_schedule_speed, 5e-5),
+    (0, 2e-5),
+    (3_000_000 * global_schedule_speed, 2e-5),
+    (12_000_000 * global_schedule_speed, 2e-5),
     (15_000_000 * global_schedule_speed, 1e-5),
 ]
 tensorboard_suffix_schedule = [
@@ -139,8 +139,8 @@ additional_transition_after_reset = 1_600_000
 last_layer_reset_factor = 0.8  # 0 : full reset, 1 : nothing happens
 overall_reset_mul_factor = 0.01  # 0 : nothing happens ; 1 : full reset
 
-clip_grad_value = 1000
-clip_grad_norm = 30
+clip_grad_value = 100
+clip_grad_norm = 10
 
 number_memories_trained_on_between_target_network_updates = 2048
 soft_update_tau = 0.02
@@ -199,7 +199,7 @@ sync_virtual_and_real_checkpoints = True
 # "standard": Always start at Zone 0. Passive Teacher.
 # "focused": Teacher forces spawn at "Kill Zone".
 # "hybrid": Always start at Zone 0. If crash at "Kill Zone", Instant Replay X times.
-TRAINING_MODE = "standard"
+TRAINING_MODE = "focused"
 INSTANT_REPLAY_ATTEMPTS = 5
 
 """ 

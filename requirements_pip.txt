@@ -8,3 +8,18 @@ python-libxdo ; sys_platform == 'linux'
 torch
 torchvision
 pywin32 ; sys_platform == 'win32'
+numpy==1.26.4
+matplotlib
+joblib
+psutil
+setuptools
+typing_extensions
+numba
+tensorboard
+scipy
+prettytable
+ruff
+pandas
+seaborn
+scikit-learn
+pyarrow

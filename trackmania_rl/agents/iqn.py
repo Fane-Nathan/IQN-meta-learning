@@ -330,7 +330,7 @@ class Trainer:
                 # Check for NaNs BEFORE stepping
                 if math.isnan(grad_norm) or math.isinf(grad_norm):
                     print(f"⚠️ Invalid Gradients detected (grad_norm={grad_norm}). SKIPPING UPDATE to protect model.")
-                    self.scaler = torch.cuda.amp.GradScaler(init_scale=128.0) # Reset with safe scale
+                    self.scaler = torch.cuda.amp.GradScaler(init_scale=1.0) # Reset with ultra-safe scale (1.0)
                 else:
                     self.scaler.step(self.optimizer)
                     self.scaler.update()
@@ -339,7 +339,7 @@ class Trainer:
                     scale = self.scaler.get_scale()
                     if scale < 1e-5 or grad_norm == 0.0:
                         print(f"⚠️ Scaler Issue detected (scale={scale}, grad_norm={grad_norm}). Resetting Scaler.")
-                        self.scaler = torch.cuda.amp.GradScaler(init_scale=128.0) # Reset with safe scale
+                        self.scaler = torch.cuda.amp.GradScaler(init_scale=1.0) # Reset with ultra-safe scale
 
 
 
