@@ -33,11 +33,7 @@ def collector_process_fn(
     from trackmania_rl.tmi_interaction import game_instance_manager
     from trackmania_rl.tmi_interaction import game_instance_manager
     
-    # Add scripts to path for MasteryTracker
-    import sys
-    if str(base_dir / "scripts") not in sys.path:
-        sys.path.append(str(base_dir / "scripts"))
-    from mastery_detection import MasteryTracker
+    # MasteryTracker removed (archived)
 
     set_random_seed(process_number)
 
@@ -50,7 +46,7 @@ def collector_process_fn(
         tmi_port=tmi_port,
     )
 
-    mastery_tracker = MasteryTracker()
+    # mastery_tracker = MasteryTracker() # Removed
 
     inference_network, uncompiled_inference_network = iqn.make_untrained_iqn_network(config_copy.use_jit, is_inference=True)
     try:
@@ -213,21 +209,7 @@ def collector_process_fn(
         rollout_results["worker_time_in_rollout_percentage"] = rollout_duration / (time.perf_counter() - time_since_last_queue_push)
         time_since_last_queue_push = time.perf_counter()
         
-        # Mastery Detection Integration
-        try:
-            rollout_data_mastery = {
-                "max_zone": rollout_results["furthest_zone_idx"],
-                "zone_times": {}, # We don't have per-zone times easily accessible here without processing cp_times
-                "records_set": [], # We'd need to parse logs or track this, for now let's rely on max_zone
-                "crashed": not end_race_stats["race_finished"]
-            }
-            # If we have race time and finished, we can infer some speed metrics if needed
-            
-            advancement = mastery_tracker.update_from_rollout(rollout_data_mastery)
-            if advancement and advancement["should_advance"]:
-                print(f"🎯 CURRICULUM ADVANCEMENT: {advancement['reason']}")
-        except Exception as e:
-            print(f"Mastery Tracker Error: {e}")
+        # Mastery Detection Integration removed (archived)
 
         print("", flush=True)
 

@@ -127,8 +127,8 @@ def driving_style_clustering(df, output_dir):
 
 def state_space_mapping(df, state_floats, output_dir):
     print("--- State Space Mapping (PCA) ---")
-    if len(df) > 10000:
-        indices = np.random.choice(len(df), 10000, replace=False)
+    if len(df) > 100000:
+        indices = np.random.choice(len(df), 100000, replace=False)
         subset_floats = state_floats[indices]
         subset_df = df.iloc[indices]
     else:
@@ -138,6 +138,38 @@ def state_space_mapping(df, state_floats, output_dir):
     pca = PCA(n_components=2)
     pca_result = pca.fit_transform(subset_floats)
     
+    # Analyze Components
+    print("\n--- PCA Component Analysis ---")
+    # We need to know what the input features were.
+    # state_floats is raw, so we don't have names.
+    # But we know the indices:
+    # 0-2: Velocity (x,y,z) ? No, usually 58-60.
+    # Let's just print the top contributing indices for now.
+    
+    components = pd.DataFrame(pca.components_, columns=[f"Feature_{i}" for i in range(subset_floats.shape[1])])
+    components.index = ["PC1", "PC2"]
+    
+    # Find top 5 features for each PC
+    for i, pc in enumerate(["PC1", "PC2"]):
+        print(f"\nTop 5 Features for {pc}:")
+        top_features = components.iloc[i].abs().sort_values(ascending=False).head(5)
+        for feat, val in top_features.items():
+            # Try to map common indices if possible
+            idx = int(feat.split("_")[1])
+            desc = ""
+            if idx == 58: desc = "(Vel X)"
+            elif idx == 59: desc = "(Vel Y)"
+            elif idx == 60: desc = "(Vel Z)"
+            elif idx == 21: desc = "(Gear)"
+            elif idx == 22: desc = "(RPM)"
+            elif idx == 3: desc = "(Steer Left)"
+            elif idx == 4: desc = "(Steer Right)"
+            elif idx == 1: desc = "(Gas)"
+            
+            print(f"  Index {idx} {desc}: {components.iloc[i][feat]:.4f}")
+            
+    components.to_csv(os.path.join(output_dir, "pca_components.csv"))
+
     plt.figure(figsize=(10, 8))
     plt.scatter(pca_result[:, 0], pca_result[:, 1], c=subset_df["speed_kmh"], cmap="plasma", s=2, alpha=0.6)
     plt.colorbar(label="Speed (km/h)")

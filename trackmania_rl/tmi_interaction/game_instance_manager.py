@@ -459,40 +459,62 @@ class GameInstanceManager:
                         if len(rollout_results["current_zone_idx"]) == 0:
                             print(f"🏁 Start Zone: {current_zone_idx}")
 
-                        # CURRICULUM: Save state if new zone reached
+                        # ==========================================================
+                        # CURRICULUM: Save state 10m INTO the zone (Fixed Offset)
+                        # ==========================================================
                         if save_states_dir is not None and current_zone_idx > max_zone_reached:
                             max_zone_reached = current_zone_idx
-                            try:
-                                # Save the RAW bytes of the SimStateData
-                                state_bytes = last_known_simulation_state.data
-                                current_race_time = last_known_simulation_state.race_time
-                                
-                                save_path = save_states_dir / f"zone_{current_zone_idx}.pkl"
-                                time_path = save_states_dir / f"zone_{current_zone_idx}.time"
-                                
-                                should_save = False
-                                if not time_path.exists():
-                                    should_save = True
-                                else:
-                                    try:
-                                        with open(time_path, "r") as f:
-                                            best_time = float(f.read().strip())
-                                        if current_race_time < best_time:
-                                            should_save = True
-                                            print(f"🚀 New Record for Zone {current_zone_idx}: {current_race_time}ms (was {best_time}ms)")
-                                    except:
-                                        should_save = True # Overwrite corrupt time file
-
-                                if should_save:
-                                    with open(save_path, "wb") as f:
-                                        pickle.dump(state_bytes, f)
-                                    with open(time_path, "w") as f:
-                                        f.write(str(current_race_time))
+                            
+                            # Initialize pending save if needed
+                            if not hasattr(self, '_pending_zone_save'):
+                                self._pending_zone_save = None
+                            
+                            # Mark this zone for saving (but don't save yet)
+                            self._pending_zone_save = current_zone_idx
+                            self._pending_zone_entry_pos = sim_state_position.copy()
+                        
+                        # Check if we should save the pending zone (traveled 10+ meters into it)
+                        if (save_states_dir is not None and
+                            hasattr(self, '_pending_zone_save') and 
+                            self._pending_zone_save is not None and
+                            self._pending_zone_save == current_zone_idx):
+                            
+                            distance_traveled = np.linalg.norm(sim_state_position - self._pending_zone_entry_pos)
+                            
+                            if distance_traveled >= 10.0:  # 10 meters into zone
+                                try:
+                                    # Save the RAW bytes of the SimStateData
+                                    state_bytes = last_known_simulation_state.data
+                                    current_race_time = last_known_simulation_state.race_time
                                     
-                                    if not time_path.exists(): # First time (logic check, though we just wrote it)
-                                        print(f"💾 Saved state for Zone {current_zone_idx} ({current_race_time}ms)")
-                            except Exception as e:
-                                print(f"Failed to save state: {e}")
+                                    save_path = save_states_dir / f"zone_{current_zone_idx}.pkl"
+                                    time_path = save_states_dir / f"zone_{current_zone_idx}.time"
+                                    
+                                    should_save = False
+                                    if not time_path.exists():
+                                        should_save = True
+                                    else:
+                                        try:
+                                            with open(time_path, "r") as f:
+                                                best_time = float(f.read().strip())
+                                            if current_race_time < best_time:
+                                                should_save = True
+                                                print(f"🚀 New Record for Zone {current_zone_idx}: {current_race_time}ms (was {best_time}ms)")
+                                        except:
+                                            should_save = True # Overwrite corrupt time file
+
+                                    if should_save:
+                                        with open(save_path, "wb") as f:
+                                            pickle.dump(state_bytes, f)
+                                        with open(time_path, "w") as f:
+                                            f.write(str(current_race_time))
+                                        
+                                        print(f"💾 Saved state for Zone {current_zone_idx} (offset 10m)")
+                                except Exception as e:
+                                    print(f"Failed to save state: {e}")
+                                
+                                # Clear pending save
+                                self._pending_zone_save = None
 
                     rollout_results["current_zone_idx"].append(current_zone_idx)
 

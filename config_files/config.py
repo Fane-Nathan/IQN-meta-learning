@@ -58,7 +58,7 @@ epsilon_schedule = [
     (50_000, 1),
     (300_000, 0.1),
     (3_000_000 * global_schedule_speed, 0.03),
-    (10_000_000 * global_schedule_speed, 0.0), # Decay to 0.0 for sync
+    (10_000_000 * global_schedule_speed, 0.001), # Decay to 0.001 to avoid div/0 error
 ]
 epsilon_boltzmann_schedule = [
     (0, 0.15),
@@ -199,7 +199,7 @@ sync_virtual_and_real_checkpoints = True
 # "standard": Always start at Zone 0. Passive Teacher.
 # "focused": Teacher forces spawn at "Kill Zone".
 # "hybrid": Always start at Zone 0. If crash at "Kill Zone", Instant Replay X times.
-TRAINING_MODE = "focused"
+TRAINING_MODE = "hybrid"
 INSTANT_REPLAY_ATTEMPTS = 5
 
 """ 
