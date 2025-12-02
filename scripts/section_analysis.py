@@ -41,7 +41,7 @@ class StateFloatSchema:
     IS_FREEWHEELING = 183
 
 
-def load_data(data_dir=".", max_rows=50_000):
+def load_data(data_dir=".", max_rows=100_000):
     """Load and filter rollout data."""
     print(f"Looking for parquet files in {data_dir}...")
     files = sorted(glob.glob(os.path.join(data_dir, "merged_rollouts_part_*.parquet")))

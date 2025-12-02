@@ -42,6 +42,7 @@ def fill_buffer_from_rollout_with_n_steps_rule(
     engineered_neoslide_reward: float,
     engineered_kamikaze_reward: float,
     engineered_close_to_vcp_reward: float,
+    engineered_wall_hit_reward: float,
 ):
     assert len(rollout_results["frames"]) == len(rollout_results["current_zone_idx"])
     n_frames = len(rollout_results["frames"])
@@ -83,6 +84,12 @@ def fill_buffer_from_rollout_with_n_steps_rule(
             reward_into[i] += (
                 engineered_neoslide_reward if abs(rollout_results["state_float"][i][56]) >= 2.0 else 0
             )  # TODO : 56 is hardcoded, this is bad....
+            
+            # Wall Hit Penalty (Proxy via Lateral Speed)
+            if engineered_wall_hit_reward != 0 and abs(rollout_results["state_float"][i][56]) >= 1.0:
+                 reward_into[i] += engineered_wall_hit_reward
+                 if i % 100 == 0: # Print occasionally to avoid spam
+                     print(f"DEBUG: Wall Hit Penalty Applied! LatSpeed={rollout_results['state_float'][i][56]:.2f}")
             # kamikaze reward
             if (
                 engineered_kamikaze_reward != 0

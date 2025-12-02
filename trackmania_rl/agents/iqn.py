@@ -315,7 +315,7 @@ class Trainer:
 
             loss *= self.typical_clamped_self_loss / correction_clamped
 
-            total_loss = torch.sum(IS_weights * loss if config_copy.prio_alpha > 0 else loss)
+            total_loss = torch.mean(IS_weights * loss if config_copy.prio_alpha > 0 else loss)
 
             if do_learn:
                 self.scaler.scale(total_loss).backward()

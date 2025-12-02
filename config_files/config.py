@@ -40,7 +40,7 @@ n_zone_centers_extrapolate_after_end_of_map = 1000
 n_zone_centers_extrapolate_before_start_of_map = 20
 n_prev_actions_in_inputs = 5
 n_contact_material_physics_behavior_types = 4  # See contact_materials.py
-cutoff_rollout_if_race_not_finished_within_duration_ms = 300_000
+cutoff_rollout_if_race_not_finished_within_duration_ms = 60_000
 cutoff_rollout_if_no_vcp_passed_within_duration_ms = 2_000
 
 temporal_mini_race_duration_ms = 7000
@@ -74,6 +74,9 @@ engineered_speedslide_reward_schedule = [
 engineered_neoslide_reward_schedule = [
     (0, 0),
 ]
+engineered_wall_hit_reward_schedule = [
+    (0, -0.47), # Penalty for lateral speed > 2m/s (Wall Hit Proxy)
+]
 engineered_kamikaze_reward_schedule = [
     (0, 0),
 ]
@@ -90,8 +93,8 @@ float_hidden_dim = 256
 conv_head_output_dim = 5632
 dense_hidden_dimension = 1024
 iqn_embedding_dimension = 64
-iqn_n = 8  # must be an even number because we sample tau symmetrically around 0.5
-iqn_k = 32  # must be an even number because we sample tau symmetrically around 0.5
+iqn_n = 16  # must be an even number because we sample tau symmetrically around 0.5
+iqn_k = 64  # must be an even number because we sample tau symmetrically around 0.5
 iqn_kappa = 5e-3
 use_ddqn = True
 
@@ -107,10 +110,10 @@ memory_size_schedule = [
     (7_000_000 * global_schedule_speed, (200_000, 150_000)),
 ]
 lr_schedule = [
-    (0, 2e-5),
-    (3_000_000 * global_schedule_speed, 2e-5),
-    (12_000_000 * global_schedule_speed, 2e-5),
-    (15_000_000 * global_schedule_speed, 1e-5),
+    (0, 3.0e-4),
+    (3_000_000 * global_schedule_speed, 3.0e-4),
+    (12_000_000 * global_schedule_speed, 3.0e-4),
+    (15_000_000 * global_schedule_speed, 1.5e-4),
 ]
 tensorboard_suffix_schedule = [
     (0, ""),
@@ -124,10 +127,10 @@ tensorboard_suffix_schedule = [
 gamma_schedule = [
     (0, 0.999),
     (1_500_000, 0.999),
-    (2_500_000, 1),
+    (2_500_000, 0.999),
 ]
 
-batch_size = 512 # Reverted to 512 for stability
+batch_size = 512 # Optimized for GTX 1650 (was 512)
 weight_decay_lr_ratio = 1 / 50
 adam_epsilon = 1e-4
 adam_beta1 = 0.9
@@ -169,7 +172,7 @@ use_jit = True
 # gpu_collectors_count is the number of Trackmania instances that will be launched in parallel.
 # It is recommended that users adjust this number depending on the performance of their machine.
 # We recommend trying different values and finding the one that maximises the number of batches done per unit of time.
-gpu_collectors_count = 2
+gpu_collectors_count = 1
 
 send_shared_network_every_n_batches = 10
 update_inference_network_every_n_actions = 20

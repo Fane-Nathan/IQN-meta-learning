@@ -280,6 +280,9 @@ def learner_process_fn(
         engineered_close_to_vcp_reward = utilities.from_linear_schedule(
             config_copy.engineered_close_to_vcp_reward_schedule, accumulated_stats["cumul_number_frames_played"]
         )
+        engineered_wall_hit_reward = utilities.from_linear_schedule(
+            config_copy.engineered_wall_hit_reward_schedule, accumulated_stats["cumul_number_frames_played"]
+        )
         gamma = utilities.from_linear_schedule(config_copy.gamma_schedule, accumulated_stats["cumul_number_frames_played"])
 
         # ===============================================
@@ -401,6 +404,7 @@ def learner_process_fn(
             "engineered_neoslide_reward": engineered_neoslide_reward,
             "engineered_kamikaze_reward": engineered_kamikaze_reward,
             "engineered_close_to_vcp_reward": engineered_close_to_vcp_reward,
+            "engineered_wall_hit_reward": engineered_wall_hit_reward,
             "n_steps": config_copy.n_steps,
             "batch_size": config_copy.batch_size,
             "iqn_k": config_copy.iqn_k,
@@ -464,6 +468,7 @@ def learner_process_fn(
                 engineered_neoslide_reward,
                 engineered_kamikaze_reward,
                 engineered_close_to_vcp_reward,
+                engineered_wall_hit_reward,
             )
 
             accumulated_stats["cumul_number_memories_generated"] += number_memories_added_train + number_memories_added_test
@@ -546,7 +551,8 @@ def learner_process_fn(
                         # utilities.log_gradient_norms(online_network, layer_grad_norm_history) #~1ms overhead per batch
 
                     accumulated_stats["cumul_number_batches_done"] += 1
-                    print(f"B    {loss=:<8.2e} {grad_norm=:<8.2e} {train_on_batch_duration_history[-1]*1000:<8.1f}")
+                    print(f"B    {loss=:<8.2e} {grad_norm=:<8.2e} avg_Q={np.mean(rollout_results['q_values']):<8.1f} {train_on_batch_duration_history[-1]*1000:<8.1f}")
+                    time.sleep(0.01) # Cooling pause (10ms) to protect hardware
 
                     # ===============================================
                     #   AUTOMATED CURRICULUM UPDATE (TEACHER)
