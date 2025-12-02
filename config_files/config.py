@@ -28,7 +28,7 @@ from config_files.user_config import *
 W_downsized = 160
 H_downsized = 120
 
-run_name = "felix_test_training"
+run_name = "Real Felix Training"
 running_speed = 80
 
 tm_engine_step_per_action = 2 # for a faster reflex agent rollout
@@ -40,7 +40,7 @@ n_zone_centers_extrapolate_after_end_of_map = 1000
 n_zone_centers_extrapolate_before_start_of_map = 20
 n_prev_actions_in_inputs = 5
 n_contact_material_physics_behavior_types = 4  # See contact_materials.py
-cutoff_rollout_if_race_not_finished_within_duration_ms = 60_000
+cutoff_rollout_if_race_not_finished_within_duration_ms = 300_000
 cutoff_rollout_if_no_vcp_passed_within_duration_ms = 2_000
 
 temporal_mini_race_duration_ms = 7000
@@ -75,17 +75,17 @@ engineered_neoslide_reward_schedule = [
     (0, 0),
 ]
 engineered_wall_hit_reward_schedule = [
-    (0, -0.47), # Penalty for lateral speed > 2m/s (Wall Hit Proxy)
+    (0, -0.05), # Penalty for lateral speed > 2m/s (Wall Hit Proxy)
 ]
 engineered_kamikaze_reward_schedule = [
-    (0, 0),
+    (0, 0.02),
 ]
 engineered_close_to_vcp_reward_schedule = [
     (0, 0),
 ]
 
-n_steps = 3
-constant_reward_per_ms = -6 / 5000
+n_steps = 5
+constant_reward_per_ms = -1 / 10000
 reward_per_m_advanced_along_centerline = 5 / 500
 
 float_input_dim = 27 + 3 * n_zone_centers_in_inputs + 4 * n_prev_actions_in_inputs + 4 * n_contact_material_physics_behavior_types + 1
@@ -93,12 +93,12 @@ float_hidden_dim = 256
 conv_head_output_dim = 5632
 dense_hidden_dimension = 1024
 iqn_embedding_dimension = 64
-iqn_n = 16  # must be an even number because we sample tau symmetrically around 0.5
+iqn_n = 32  # must be an even number because we sample tau symmetrically around 0.5
 iqn_k = 64  # must be an even number because we sample tau symmetrically around 0.5
 iqn_kappa = 5e-3
 use_ddqn = True
 
-prio_alpha = np.float32(0)  # Rainbow-IQN paper: 0.2, Rainbow paper: 0.5, PER paper 0.6
+prio_alpha = np.float32(0.2)  # Rainbow-IQN paper: 0.2, Rainbow paper: 0.5, PER paper 0.6
 prio_epsilon = np.float32(2e-3)  # Defaults to 10^-6 in stable-baselines
 prio_beta = np.float32(1)
 
@@ -110,10 +110,10 @@ memory_size_schedule = [
     (7_000_000 * global_schedule_speed, (200_000, 150_000)),
 ]
 lr_schedule = [
-    (0, 3.0e-4),
-    (3_000_000 * global_schedule_speed, 3.0e-4),
-    (12_000_000 * global_schedule_speed, 3.0e-4),
-    (15_000_000 * global_schedule_speed, 1.5e-4),
+    (0, 1e-3),
+    (3_000_000 * global_schedule_speed, 5e-5),
+    (12_000_000 * global_schedule_speed, 5e-5),
+    (15_000_000 * global_schedule_speed, 1e-5),
 ]
 tensorboard_suffix_schedule = [
     (0, ""),
@@ -142,14 +142,14 @@ additional_transition_after_reset = 1_600_000
 last_layer_reset_factor = 0.8  # 0 : full reset, 1 : nothing happens
 overall_reset_mul_factor = 0.01  # 0 : nothing happens ; 1 : full reset
 
-clip_grad_value = 100
-clip_grad_norm = 10
+clip_grad_value = 1000
+clip_grad_norm = 30
 
 number_memories_trained_on_between_target_network_updates = 2048
 soft_update_tau = 0.02
 
 distance_between_checkpoints = 0.5
-road_width = 90  ## a little bit of margin, could be closer to 24 probably ? Don't take risks there are curvy roads
+road_width = 80  ## a little bit of margin, could be closer to 24 probably ? Don't take risks there are curvy roads
 max_allowable_distance_to_virtual_checkpoint = np.sqrt((distance_between_checkpoints / 2) ** 2 + (road_width / 2) ** 2)
 
 timeout_during_run_ms = 10_100
@@ -172,7 +172,7 @@ use_jit = True
 # gpu_collectors_count is the number of Trackmania instances that will be launched in parallel.
 # It is recommended that users adjust this number depending on the performance of their machine.
 # We recommend trying different values and finding the one that maximises the number of batches done per unit of time.
-gpu_collectors_count = 1
+gpu_collectors_count = 2
 
 send_shared_network_every_n_batches = 10
 update_inference_network_every_n_actions = 20
@@ -189,7 +189,7 @@ engineered_reward_min_dist_to_cur_vcp = 5
 engineered_reward_max_dist_to_cur_vcp = 25
 shaped_reward_point_to_vcp_ahead = 0
 
-threshold_to_save_all_runs_ms = 600_000
+threshold_to_save_all_runs_ms = -1
 
 deck_height = -np.inf
 game_camera_number = 2
@@ -296,8 +296,8 @@ map_cycle += [
     # repeat(("B03", '"Official Maps\Green\B03-Race.Challenge.Gbx"', "B03-Race_10m_cl.npy", False, True), 1),
     # repeat(("B05", '"Official Maps\Green\B05-Race.Challenge.Gbx"', "B05-Race_10m_cl.npy", True, True), 4),
     # repeat(("B05", '"Official Maps\Green\B05-Race.Challenge.Gbx"', "B05-Race_10m_cl.npy", False, True), 1),
-    repeat(("hock", "ESL-Hockolicious.Challenge.Gbx", "ESL-Hockolicious_0.5m_cl2.npy", True, True), 4),
-    repeat(("hock", "ESL-Hockolicious.Challenge.Gbx", "ESL-Hockolicious_0.5m_cl2.npy", False, True), 1),
+    repeat(("hock", "ESL-Hockolicious.Challenge.Gbx", "ESL-Hockolicious_WR_Ghost.npy", True, True), 4),
+    repeat(("hock", "ESL-Hockolicious.Challenge.Gbx", "ESL-Hockolicious_WR_Ghost.npy", False, True), 1),
     # repeat(("A02", f'"Official Maps\A02-Race.Challenge.Gbx"', "A02-Race_0.5m_cl2.npy", False, False), 1),
     # repeat(("yellowmile", f'"The Yellow Mile_.Challenge.Gbx"', "YellowMile_0.5m_cl.npy", False, False), 1),
     # repeat(("te86", f'"te 86.Challenge.Gbx"', "te86_0.5m_cl.npy", False, False), 1),

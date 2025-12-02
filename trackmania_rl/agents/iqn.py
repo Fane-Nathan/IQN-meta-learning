@@ -231,7 +231,8 @@ class Trainer:
         """
         self.optimizer.zero_grad(set_to_none=True)
 
-        with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
+        # Disable AMP (use float32) to prevent NaN gradients
+        with torch.amp.autocast(device_type="cuda", dtype=torch.float32):
             with torch.no_grad():
                 batch, batch_info = buffer.sample(self.batch_size, return_info=True)
                 (
@@ -318,10 +319,11 @@ class Trainer:
             total_loss = torch.mean(IS_weights * loss if config_copy.prio_alpha > 0 else loss)
 
             if do_learn:
-                self.scaler.scale(total_loss).backward()
+                # self.scaler.scale(total_loss).backward()
+                total_loss.backward()
 
                 # Gradient clipping : https://pytorch.org/docs/stable/notes/amp_examples.html#gradient-clipping
-                self.scaler.unscale_(self.optimizer)
+                # self.scaler.unscale_(self.optimizer)
                 grad_norm = (
                     torch.nn.utils.clip_grad_norm_(self.online_network.parameters(), config_copy.clip_grad_norm).detach().cpu().item()
                 )
@@ -330,16 +332,17 @@ class Trainer:
                 # Check for NaNs BEFORE stepping
                 if math.isnan(grad_norm) or math.isinf(grad_norm):
                     print(f"⚠️ Invalid Gradients detected (grad_norm={grad_norm}). SKIPPING UPDATE to protect model.")
-                    self.scaler = torch.cuda.amp.GradScaler(init_scale=1.0) # Reset with ultra-safe scale (1.0)
+                    # self.scaler = torch.cuda.amp.GradScaler(init_scale=1.0) # Reset with ultra-safe scale (1.0)
                 else:
-                    self.scaler.step(self.optimizer)
-                    self.scaler.update()
+                    # self.scaler.step(self.optimizer)
+                    # self.scaler.update()
+                    self.optimizer.step()
                 
                     # Check for Scaler Collapse or Zero Gradients
-                    scale = self.scaler.get_scale()
-                    if scale < 1e-5 or grad_norm == 0.0:
-                        print(f"⚠️ Scaler Issue detected (scale={scale}, grad_norm={grad_norm}). Resetting Scaler.")
-                        self.scaler = torch.cuda.amp.GradScaler(init_scale=1.0) # Reset with ultra-safe scale
+                    # scale = self.scaler.get_scale()
+                    # if scale < 1e-5 or grad_norm == 0.0:
+                    #     print(f"⚠️ Scaler Issue detected (scale={scale}, grad_norm={grad_norm}). Resetting Scaler.")
+                    #     self.scaler = torch.cuda.amp.GradScaler(init_scale=1.0) # Reset with ultra-safe scale
 
 
 

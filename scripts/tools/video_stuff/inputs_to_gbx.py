@@ -92,10 +92,13 @@ def launch_game(tmi_port):
         # tmi_process_id = int(subprocess.check_output(launch_string).decode().split("\r\n")[1])
         # Wait for TmForever to start
         while tm_process_id is None:
-            for proc in psutil.process_iter(['pid', 'name', 'ppid']):
-                if proc.info['name'] and proc.info['name'].startswith("TmForever"):
-                     tm_process_id = proc.info['pid']
-                     break
+            try:
+                for proc in psutil.process_iter(['pid', 'name']):
+                    if proc.info['name'] and proc.info['name'].startswith("TmForever"):
+                         tm_process_id = proc.info['pid']
+                         break
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                pass
             time.sleep(0.1)
 
     assert tm_process_id is not None
@@ -131,7 +134,7 @@ def main():
     parser.add_argument("--inputs_dir", "-i", type=str, required=True)
     parser.add_argument("--map_path", "-m", type=str, required=True)
     parser.add_argument("--cutoff_time", "-t", type=float, default=np.inf)
-    parser.add_argument("--tmi_port", "-p", type=int, default=8677)
+    parser.add_argument("--tmi_port", "-p", type=int, default=8478)
     args = parser.parse_args()
     iface = TMInterface(args.tmi_port)
     inputs_folder = args.inputs_dir if args.inputs_dir[0] in ["/", "\\"] else os.path.join(os.getcwd(), args.inputs_dir)
@@ -218,6 +221,7 @@ def main():
                         iface.give_up()
                         give_up_signal_has_been_sent = True
                     elif _time > args.cutoff_time * 1000 and not expecting_replay_file:
+                        print(f"⏱️ Time limit reached ({_time/1000:.1f}s). Forcing finish...")
                         # expecting_replay_file = True
                         iface.execute_command("finish")
                         # request_map(iface,args.map_path)
